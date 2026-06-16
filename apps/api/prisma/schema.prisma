@@ -1,0 +1,1827 @@
+// ====================================================
+// SERVIMIL OS · Prisma Schema
+// Enterprise ERP/CRM Database
+// ====================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearch", "postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [uuidOssp(map: "uuid-ossp"), pgTrgm(map: "pg_trgm"), unaccent]
+}
+
+// ====================================================
+// ENUMS
+// ====================================================
+
+enum UserRole {
+  ADMIN
+  SUPERVISOR
+  FINANCIAL
+  LEGAL
+  COMMERCIAL
+  ADVISOR
+  EXECUTIVE
+  MARKETING_MANAGER
+  DESIGNER
+  APPROVER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  TRANSFER
+  ADJUSTMENT
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+  RECONCILED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CHECK
+  CARD
+  NEQUI
+  DAVIPLATA
+  PSE
+  OTHER
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+  ON_LEAVE
+  TERMINATED
+}
+
+enum ContractType {
+  INDEFINITE
+  FIXED_TERM
+  PART_TIME
+  INTERNSHIP
+  FREELANCE
+  SERVICE
+}
+
+enum PayrollStatus {
+  DRAFT
+  PROCESSING
+  APPROVED
+  PAID
+  CANCELLED
+}
+
+enum CreditStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  DISBURSED
+  ACTIVE
+  PAID_OFF
+  DEFAULTED
+  RESTRUCTURED
+}
+
+enum CreditType {
+  PERSONAL
+  COMMERCIAL
+  MORTGAGE
+  VEHICLE
+  EDUCATIONAL
+  MICROENTERPRISE
+}
+
+enum CollectionStatus {
+  CURRENT
+  DAYS_30
+  DAYS_60
+  DAYS_90
+  DAYS_120_PLUS
+  LEGAL
+  WRITTEN_OFF
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+  ARCHIVED
+}
+
+enum LeadSource {
+  WHATSAPP
+  WEBSITE
+  REFERRAL
+  CALL
+  EMAIL
+  SOCIAL_MEDIA
+  WALK_IN
+  OTHER
+}
+
+enum ActivityType {
+  CALL
+  EMAIL
+  MEETING
+  WHATSAPP_MESSAGE
+  VISIT
+  TASK
+  NOTE
+  DOCUMENT
+}
+
+enum WhatsappSessionStatus {
+  DISCONNECTED
+  CONNECTING
+  QR_REQUIRED
+  CONNECTED
+  RECONNECTING
+  ERROR
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+  STICKER
+  LOCATION
+  CONTACT
+  REACTION
+  TEMPLATE
+  INTERACTIVE
+}
+
+enum MessageStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum LegalCaseStatus {
+  OPEN
+  IN_PROGRESS
+  HEARING
+  APPEAL
+  RESOLVED
+  CLOSED
+  ARCHIVED
+}
+
+enum LegalCaseType {
+  COLLECTION
+  CONTRACT
+  LABOR
+  COMMERCIAL
+  ADMINISTRATIVE
+  CRIMINAL
+  CIVIL
+  OTHER
+}
+
+enum EventPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+  CRITICAL
+}
+
+enum DocumentCategory {
+  IDENTITY
+  FINANCIAL
+  LEGAL
+  PAYROLL
+  CONTRACT
+  CREDIT
+  GENERAL
+  OTHER
+}
+
+enum OcrStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum AiProvider {
+  OPENAI
+  GEMINI
+  CLAUDE
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  WHATSAPP
+  SMS
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  READ
+  FAILED
+}
+
+enum AuditAction {
+  CREATE
+  READ
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  EXPORT
+  IMPORT
+  APPROVE
+  REJECT
+  ASSIGN
+}
+
+// ====================================================
+// CORE: USERS & AUTH
+// ====================================================
+
+model User {
+  id                String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  email             String     @unique
+  passwordHash      String     @map("password_hash")
+  firstName         String     @map("first_name")
+  lastName          String     @map("last_name")
+  phone             String?
+  avatarUrl         String?    @map("avatar_url")
+  role              UserRole   @default(ADVISOR)
+  status            UserStatus @default(PENDING_VERIFICATION)
+  isEmailVerified   Boolean    @default(false) @map("is_email_verified")
+  emailVerifyToken  String?    @map("email_verify_token")
+  resetPasswordToken String?   @map("reset_password_token")
+  resetPasswordExpiresAt DateTime? @map("reset_password_expires_at")
+  lastLoginAt       DateTime?  @map("last_login_at")
+  lastLoginIp       String?    @map("last_login_ip")
+  mfaEnabled        Boolean    @default(false) @map("mfa_enabled")
+  mfaSecret         String?    @map("mfa_secret")
+  preferences       Json       @default("{}")
+  metadata          Json       @default("{}")
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime   @updatedAt @map("updated_at")
+  deletedAt         DateTime?  @map("deleted_at")
+
+  // Relations
+  refreshTokens     RefreshToken[]
+  assignedLeads     Lead[]         @relation("AssignedAdvisor")
+  createdLeads      Lead[]         @relation("CreatedBy")
+  activities        Activity[]
+  conversations     Conversation[] @relation("AssignedUser")
+  whatsappSessions  WhatsappSession[]
+  legalCases        LegalCase[]    @relation("AssignedLegal")
+  auditLogs         AuditLog[]
+  notifications     Notification[]
+  documents         Document[]
+  payrolls          Payroll[]      @relation("ApprovedBy")
+  creditRequests    CreditRequest[] @relation("ReviewedBy")
+
+  // Content Studio
+  contentApprovals       ContentApproval[]
+  contentStrategies      ContentStrategy[]  @relation("StrategyCreator")
+
+  // AI Hub Relations
+  aiConversations        AiConversation[]
+  aiExecutionLogs        AiExecutionLog[]
+  aiActionConfirmations  AiActionConfirmation[]
+  aiMemoryEntries        AiMemoryEntry[]
+  aiModelUsages          AiModelUsage[]
+  aiFeedbacks            AiFeedback[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  token       String   @unique
+  userId      String   @map("user_id") @db.Uuid
+  deviceInfo  String?  @map("device_info")
+  ipAddress   String?  @map("ip_address")
+  expiresAt   DateTime @map("expires_at")
+  isRevoked   Boolean  @default(false) @map("is_revoked")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+// ====================================================
+// CLIENTS & CONTACTS (CRM Core)
+// ====================================================
+
+model Client {
+  id              String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  documentType    String    @map("document_type") // CC, NIT, CE, TI
+  documentNumber  String    @unique @map("document_number")
+  firstName       String?   @map("first_name")
+  lastName        String?   @map("last_name")
+  businessName    String?   @map("business_name")
+  email           String?
+  phone           String?
+  phone2          String?
+  address         String?
+  city            String?
+  department      String?
+  country         String    @default("Colombia")
+  birthDate       DateTime? @map("birth_date")
+  occupation      String?
+  monthlyIncome   Decimal?  @map("monthly_income") @db.Decimal(15, 2)
+  riskScore       Int?      @map("risk_score") @db.SmallInt // 0-100
+  tags            String[]  @default([])
+  notes           String?
+  isActive        Boolean   @default(true) @map("is_active")
+  metadata        Json      @default("{}")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+
+  // Relations
+  leads           Lead[]
+  credits         CreditRequest[]
+  contacts        Contact[]
+  conversations   Conversation[]
+  legalCases      LegalCase[]
+  documents       Document[]
+  transactions    Transaction[]
+  employees       Employee[]
+  payrolls        Payroll[]
+  executiveEmails ExecutiveEmail[]
+
+  @@index([documentNumber])
+  @@index([phone])
+  @@index([email])
+  @@map("clients")
+}
+
+model Contact {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  clientId    String   @map("client_id") @db.Uuid
+  name        String
+  relationship String?  // spouse, parent, reference, etc.
+  phone       String?
+  email       String?
+  address     String?
+  isPrimary   Boolean  @default(false) @map("is_primary")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("contacts")
+}
+
+// ====================================================
+// MODULE 1: FINANCE & TREASURY
+// ====================================================
+
+model Account {
+  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name          String
+  code          String   @unique
+  type          String   // bank, cash, credit, investment
+  bankName      String?  @map("bank_name")
+  bankAccount   String?  @map("bank_account")
+  initialBalance Decimal @default(0) @map("initial_balance") @db.Decimal(15, 2)
+  currentBalance Decimal @default(0) @map("current_balance") @db.Decimal(15, 2)
+  currency      String   @default("COP")
+  isActive      Boolean  @default(true) @map("is_active")
+  description   String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  transactionsFrom Transaction[] @relation("FromAccount")
+  transactionsTo   Transaction[] @relation("ToAccount")
+  reconciliations  BankReconciliation[]
+
+  @@map("accounts")
+}
+
+model Category {
+  id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name        String
+  code        String    @unique
+  type        TransactionType
+  parentId    String?   @map("parent_id") @db.Uuid
+  color       String?
+  icon        String?
+  isSystem    Boolean   @default(false) @map("is_system")
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  parent      Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    Category[] @relation("CategoryHierarchy")
+  transactions Transaction[]
+
+  @@map("categories")
+}
+
+model Transaction {
+  id              String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  reference       String            @unique
+  type            TransactionType
+  status          TransactionStatus @default(PENDING)
+  amount          Decimal           @db.Decimal(15, 2)
+  currency        String            @default("COP")
+  exchangeRate    Decimal?          @map("exchange_rate") @db.Decimal(10, 6)
+  description     String
+  notes           String?
+  paymentMethod   PaymentMethod?    @map("payment_method")
+  fromAccountId   String?           @map("from_account_id") @db.Uuid
+  toAccountId     String?           @map("to_account_id") @db.Uuid
+  categoryId      String?           @map("category_id") @db.Uuid
+  clientId        String?           @map("client_id") @db.Uuid
+  creditId        String?           @map("credit_id") @db.Uuid
+  payrollId       String?           @map("payroll_id") @db.Uuid
+  transactionDate DateTime          @map("transaction_date")
+  reconciledAt    DateTime?         @map("reconciled_at")
+  tags            String[]          @default([])
+  attachments     String[]          @default([])
+  metadata        Json              @default("{}")
+  aiCategory      String?           @map("ai_category")
+  aiConfidence    Float?            @map("ai_confidence")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  deletedAt       DateTime?         @map("deleted_at")
+
+  fromAccount     Account?          @relation("FromAccount", fields: [fromAccountId], references: [id])
+  toAccount       Account?          @relation("ToAccount", fields: [toAccountId], references: [id])
+  category        Category?         @relation(fields: [categoryId], references: [id])
+  client          Client?           @relation(fields: [clientId], references: [id])
+  credit          CreditRequest?    @relation(fields: [creditId], references: [id])
+  payroll         Payroll?          @relation(fields: [payrollId], references: [id])
+
+  @@index([transactionDate])
+  @@index([type, status])
+  @@index([clientId])
+  @@map("transactions")
+}
+
+model BankReconciliation {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  accountId       String   @map("account_id") @db.Uuid
+  period          String   // "2024-01"
+  bankBalance     Decimal  @map("bank_balance") @db.Decimal(15, 2)
+  bookBalance     Decimal  @map("book_balance") @db.Decimal(15, 2)
+  difference      Decimal  @db.Decimal(15, 2)
+  isReconciled    Boolean  @default(false) @map("is_reconciled")
+  reconciledAt    DateTime? @map("reconciled_at")
+  notes           String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  account         Account  @relation(fields: [accountId], references: [id])
+
+  @@unique([accountId, period])
+  @@map("bank_reconciliations")
+}
+
+model Budget {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name        String
+  period      String   // "2024-Q1", "2024-01"
+  type        String   // monthly, quarterly, annual
+  totalAmount Decimal  @map("total_amount") @db.Decimal(15, 2)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  items       BudgetItem[]
+
+  @@map("budgets")
+}
+
+model BudgetItem {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  budgetId    String   @map("budget_id") @db.Uuid
+  categoryId  String?  @map("category_id") @db.Uuid
+  name        String
+  planned     Decimal  @db.Decimal(15, 2)
+  actual      Decimal  @default(0) @db.Decimal(15, 2)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  budget      Budget   @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+
+  @@map("budget_items")
+}
+
+// ====================================================
+// MODULE 2: PAYROLL & COMPLIANCE
+// ====================================================
+
+model Department {
+  id          String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name        String
+  code        String     @unique
+  managerId   String?    @map("manager_id") @db.Uuid
+  isActive    Boolean    @default(true) @map("is_active")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  employees   Employee[]
+
+  @@map("departments")
+}
+
+model Position {
+  id          String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  title       String
+  code        String     @unique
+  baseSalary  Decimal    @map("base_salary") @db.Decimal(15, 2)
+  isActive    Boolean    @default(true) @map("is_active")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  employees   Employee[]
+
+  @@map("positions")
+}
+
+model Employee {
+  id                String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  clientId          String?        @map("client_id") @db.Uuid
+  employeeCode      String         @unique @map("employee_code")
+  departmentId      String?        @map("department_id") @db.Uuid
+  positionId        String?        @map("position_id") @db.Uuid
+  contractType      ContractType   @map("contract_type")
+  status            EmployeeStatus @default(ACTIVE)
+  baseSalary        Decimal        @map("base_salary") @db.Decimal(15, 2)
+  transportAllowance Decimal       @default(0) @map("transport_allowance") @db.Decimal(15, 2)
+  bankName          String?        @map("bank_name")
+  bankAccount       String?        @map("bank_account")
+  bankAccountType   String?        @map("bank_account_type") // savings, checking
+  eps               String?        // Health provider
+  afp               String?        // Pension fund
+  arl               String?        // Labor risk
+  ccf               String?        // Family compensation
+  hireDate          DateTime       @map("hire_date")
+  terminationDate   DateTime?      @map("termination_date")
+  terminationReason String?        @map("termination_reason")
+  emergencyContact  Json?          @map("emergency_contact")
+  metadata          Json           @default("{}")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+  deletedAt         DateTime?      @map("deleted_at")
+
+  client            Client?        @relation(fields: [clientId], references: [id])
+  department        Department?    @relation(fields: [departmentId], references: [id])
+  position          Position?      @relation(fields: [positionId], references: [id])
+  payrollItems      PayrollItem[]
+  novelties         PayrollNovelty[]
+
+  @@map("employees")
+}
+
+model Payroll {
+  id            String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  period        String        // "2024-01"
+  periodType    String        @map("period_type") // monthly, biweekly
+  status        PayrollStatus @default(DRAFT)
+  totalGross    Decimal       @default(0) @map("total_gross") @db.Decimal(15, 2)
+  totalDeductions Decimal     @default(0) @map("total_deductions") @db.Decimal(15, 2)
+  totalNet      Decimal       @default(0) @map("total_net") @db.Decimal(15, 2)
+  totalEmployees Int          @default(0) @map("total_employees")
+  approvedById  String?       @map("approved_by_id") @db.Uuid
+  approvedAt    DateTime?     @map("approved_at")
+  paidAt        DateTime?     @map("paid_at")
+  notes         String?
+  clientId      String?       @map("client_id") @db.Uuid
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  approvedBy    User?         @relation("ApprovedBy", fields: [approvedById], references: [id])
+  client        Client?       @relation(fields: [clientId], references: [id])
+  items         PayrollItem[]
+  transactions  Transaction[]
+
+  @@unique([period, clientId])
+  @@map("payrolls")
+}
+
+model PayrollItem {
+  id                  String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  payrollId           String   @map("payroll_id") @db.Uuid
+  employeeId          String   @map("employee_id") @db.Uuid
+  baseSalary          Decimal  @map("base_salary") @db.Decimal(15, 2)
+  transportAllowance  Decimal  @default(0) @map("transport_allowance") @db.Decimal(15, 2)
+  workedDays          Int      @default(30) @map("worked_days")
+  extraHours          Decimal  @default(0) @map("extra_hours") @db.Decimal(8, 2)
+  extraHoursValue     Decimal  @default(0) @map("extra_hours_value") @db.Decimal(15, 2)
+  commissions         Decimal  @default(0) @db.Decimal(15, 2)
+  bonuses             Decimal  @default(0) @db.Decimal(15, 2)
+  grossSalary         Decimal  @map("gross_salary") @db.Decimal(15, 2)
+  // Social security (employee contributions)
+  healthEmployee      Decimal  @default(0) @map("health_employee") @db.Decimal(15, 2)
+  pensionEmployee     Decimal  @default(0) @map("pension_employee") @db.Decimal(15, 2)
+  // Social security (employer contributions)
+  healthEmployer      Decimal  @default(0) @map("health_employer") @db.Decimal(15, 2)
+  pensionEmployer     Decimal  @default(0) @map("pension_employer") @db.Decimal(15, 2)
+  arlEmployer         Decimal  @default(0) @map("arl_employer") @db.Decimal(15, 2)
+  ccfEmployer         Decimal  @default(0) @map("ccf_employer") @db.Decimal(15, 2)
+  // Deductions
+  retentionIncome     Decimal  @default(0) @map("retention_income") @db.Decimal(15, 2)
+  otherDeductions     Decimal  @default(0) @map("other_deductions") @db.Decimal(15, 2)
+  totalDeductions     Decimal  @map("total_deductions") @db.Decimal(15, 2)
+  netSalary           Decimal  @map("net_salary") @db.Decimal(15, 2)
+  // Provisions
+  cesantias           Decimal  @default(0) @db.Decimal(15, 2)
+  interestCesantias   Decimal  @default(0) @map("interest_cesantias") @db.Decimal(15, 2)
+  prima               Decimal  @default(0) @db.Decimal(15, 2)
+  vacaciones          Decimal  @default(0) @db.Decimal(15, 2)
+  payStubUrl          String?  @map("pay_stub_url")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  payroll             Payroll  @relation(fields: [payrollId], references: [id], onDelete: Cascade)
+  employee            Employee @relation(fields: [employeeId], references: [id])
+
+  @@unique([payrollId, employeeId])
+  @@map("payroll_items")
+}
+
+model PayrollNovelty {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  employeeId  String   @map("employee_id") @db.Uuid
+  type        String   // absence, disability, vacation, bonus, deduction, extra_hours
+  description String
+  amount      Decimal? @db.Decimal(15, 2)
+  days        Int?
+  startDate   DateTime? @map("start_date")
+  endDate     DateTime? @map("end_date")
+  isApproved  Boolean  @default(false) @map("is_approved")
+  period      String   // "2024-01"
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  employee    Employee @relation(fields: [employeeId], references: [id])
+
+  @@map("payroll_novelties")
+}
+
+// ====================================================
+// MODULE 3: CREDIT & PORTFOLIO
+// ====================================================
+
+model CreditRequest {
+  id                String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  requestNumber     String          @unique @map("request_number")
+  clientId          String          @map("client_id") @db.Uuid
+  type              CreditType      @default(PERSONAL)
+  status            CreditStatus    @default(DRAFT)
+  requestedAmount   Decimal         @map("requested_amount") @db.Decimal(15, 2)
+  approvedAmount    Decimal?        @map("approved_amount") @db.Decimal(15, 2)
+  disbursedAmount   Decimal?        @map("disbursed_amount") @db.Decimal(15, 2)
+  interestRate      Decimal?        @map("interest_rate") @db.Decimal(8, 4) // annual %
+  term              Int?            // months
+  paymentFrequency  String?         @map("payment_frequency") // monthly, biweekly, weekly
+  purpose           String?
+  collateral        String?
+  riskScore         Int?            @map("risk_score") @db.SmallInt // 0-100
+  riskLevel         String?         @map("risk_level") // low, medium, high, critical
+  reviewedById      String?         @map("reviewed_by_id") @db.Uuid
+  reviewedAt        DateTime?       @map("reviewed_at")
+  disbursedAt       DateTime?       @map("disbursed_at")
+  expectedEndDate   DateTime?       @map("expected_end_date")
+  rejectionReason   String?         @map("rejection_reason")
+  notes             String?
+  aiAnalysis        Json?           @map("ai_analysis")
+  metadata          Json            @default("{}")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+  deletedAt         DateTime?       @map("deleted_at")
+
+  client            Client          @relation(fields: [clientId], references: [id])
+  reviewedBy        User?           @relation("ReviewedBy", fields: [reviewedById], references: [id])
+  installments      CreditInstallment[]
+  transactions      Transaction[]
+  documents         Document[]
+  collections       CollectionAction[]
+
+  @@index([clientId])
+  @@index([status])
+  @@map("credit_requests")
+}
+
+model CreditInstallment {
+  id                String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  creditId          String           @map("credit_id") @db.Uuid
+  installmentNumber Int              @map("installment_number")
+  dueDate           DateTime         @map("due_date")
+  principalAmount   Decimal          @map("principal_amount") @db.Decimal(15, 2)
+  interestAmount    Decimal          @map("interest_amount") @db.Decimal(15, 2)
+  totalAmount       Decimal          @map("total_amount") @db.Decimal(15, 2)
+  paidAmount        Decimal          @default(0) @map("paid_amount") @db.Decimal(15, 2)
+  paidAt            DateTime?        @map("paid_at")
+  daysOverdue       Int              @default(0) @map("days_overdue")
+  penaltyAmount     Decimal          @default(0) @map("penalty_amount") @db.Decimal(15, 2)
+  collectionStatus  CollectionStatus @default(CURRENT) @map("collection_status")
+  isPaid            Boolean          @default(false) @map("is_paid")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  credit            CreditRequest    @relation(fields: [creditId], references: [id], onDelete: Cascade)
+
+  @@unique([creditId, installmentNumber])
+  @@index([dueDate, isPaid])
+  @@map("credit_installments")
+}
+
+model CollectionAction {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  creditId    String   @map("credit_id") @db.Uuid
+  type        String   // call, visit, letter, legal, agreement, write_off
+  description String
+  result      String?
+  nextAction  String?  @map("next_action")
+  nextDate    DateTime? @map("next_date")
+  promiseDate DateTime? @map("promise_date")
+  promiseAmount Decimal? @map("promise_amount") @db.Decimal(15, 2)
+  agentId     String?  @map("agent_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  credit      CreditRequest @relation(fields: [creditId], references: [id])
+
+  @@map("collection_actions")
+}
+
+// ====================================================
+// MODULE 4: CRM
+// ====================================================
+
+model Lead {
+  id              String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  clientId        String?    @map("client_id") @db.Uuid
+  assignedToId    String?    @map("assigned_to_id") @db.Uuid
+  createdById     String?    @map("created_by_id") @db.Uuid
+  status          LeadStatus @default(NEW)
+  source          LeadSource @default(OTHER)
+  name            String
+  email           String?
+  phone           String?
+  company         String?
+  interest        String?    // What they're interested in
+  estimatedValue  Decimal?   @map("estimated_value") @db.Decimal(15, 2)
+  probability     Int?       @db.SmallInt // 0-100%
+  scoreAi         Int?       @map("score_ai") @db.SmallInt // AI lead score 0-100
+  intentSignals   String[]   @default([]) @map("intent_signals")
+  sentimentScore  Float?     @map("sentiment_score")
+  tags            String[]   @default([])
+  notes           String?
+  lostReason      String?    @map("lost_reason")
+  convertedAt     DateTime?  @map("converted_at")
+  expectedCloseDate DateTime? @map("expected_close_date")
+  metadata        Json       @default("{}")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+  deletedAt       DateTime?  @map("deleted_at")
+
+  client          Client?    @relation(fields: [clientId], references: [id])
+  assignedTo      User?      @relation("AssignedAdvisor", fields: [assignedToId], references: [id])
+  createdBy       User?      @relation("CreatedBy", fields: [createdById], references: [id])
+  activities      Activity[]
+  conversations   Conversation[]
+
+  @@index([status, assignedToId])
+  @@index([source])
+  @@map("leads")
+}
+
+model Activity {
+  id          String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  leadId      String?      @map("lead_id") @db.Uuid
+  userId      String?      @map("user_id") @db.Uuid
+  type        ActivityType
+  subject     String
+  description String?
+  outcome     String?
+  scheduledAt DateTime?    @map("scheduled_at")
+  completedAt DateTime?    @map("completed_at")
+  duration    Int?         // minutes
+  isCompleted Boolean      @default(false) @map("is_completed")
+  metadata    Json         @default("{}")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  lead        Lead?        @relation(fields: [leadId], references: [id])
+  user        User?        @relation(fields: [userId], references: [id])
+
+  @@index([leadId])
+  @@index([scheduledAt])
+  @@map("activities")
+}
+
+model Automation {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name        String
+  description String?
+  trigger     Json     // trigger conditions
+  conditions  Json     @default("[]")
+  actions     Json     // actions to perform
+  isActive    Boolean  @default(true) @map("is_active")
+  executionCount Int   @default(0) @map("execution_count")
+  lastExecutedAt DateTime? @map("last_executed_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  executions  AutomationExecution[]
+
+  @@map("automations")
+}
+
+model AutomationExecution {
+  id            String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  automationId  String    @map("automation_id") @db.Uuid
+  status        String    // running, success, failed
+  triggerData   Json      @map("trigger_data")
+  result        Json?
+  error         String?
+  executedAt    DateTime  @default(now()) @map("executed_at")
+  completedAt   DateTime? @map("completed_at")
+
+  automation    Automation @relation(fields: [automationId], references: [id])
+
+  @@map("automation_executions")
+}
+
+// ====================================================
+// MODULE 5: WHATSAPP + AI
+// ====================================================
+
+model WhatsappSession {
+  id              String                @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name            String
+  phoneNumber     String?               @map("phone_number")
+  userId          String                @map("user_id") @db.Uuid
+  status          WhatsappSessionStatus @default(DISCONNECTED)
+  sessionData     String?               @map("session_data") // encrypted credentials path
+  qrCode          String?               @map("qr_code")
+  lastConnectedAt DateTime?             @map("last_connected_at")
+  lastDisconnectedAt DateTime?          @map("last_disconnected_at")
+  isDefault       Boolean               @default(false) @map("is_default")
+  metadata        Json                  @default("{}")
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+
+  user            User                  @relation(fields: [userId], references: [id])
+  conversations   Conversation[]
+
+  @@map("whatsapp_sessions")
+}
+
+model Conversation {
+  id              String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  sessionId       String    @map("session_id") @db.Uuid
+  remoteJid       String    @map("remote_jid") // WhatsApp JID
+  clientId        String?   @map("client_id") @db.Uuid
+  leadId          String?   @map("lead_id") @db.Uuid
+  assignedToId    String?   @map("assigned_to_id") @db.Uuid
+  name            String?   // Contact name from WA
+  phoneNumber     String?   @map("phone_number")
+  profilePicUrl   String?   @map("profile_pic_url")
+  isGroup         Boolean   @default(false) @map("is_group")
+  unreadCount     Int       @default(0) @map("unread_count")
+  lastMessageAt   DateTime? @map("last_message_at")
+  lastMessageText String?   @map("last_message_text")
+  tags            String[]  @default([])
+  labels          String[]  @default([])
+  notes           String?
+  status          String    @default("open") // open, resolved, archived
+  funnelStage     String    @default("NUEVO") @map("funnel_stage") // NUEVO, INTERESADO, NEGOCIANDO, CLIENTE, DESCARTADO
+  sentimentScore  Float?    @map("sentiment_score")
+  aiSummary       String?   @map("ai_summary")
+  lastAiAnalysisAt DateTime? @map("last_ai_analysis_at")
+  metadata        Json      @default("{}")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  session         WhatsappSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  client          Client?   @relation(fields: [clientId], references: [id])
+  lead            Lead?     @relation(fields: [leadId], references: [id])
+  assignedTo      User?     @relation("AssignedUser", fields: [assignedToId], references: [id])
+  messages        Message[]
+  tasks           Task[]
+
+  @@unique([sessionId, remoteJid])
+  @@index([lastMessageAt])
+  @@index([status])
+  @@map("conversations")
+}
+
+model Message {
+  id              String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  conversationId  String          @map("conversation_id") @db.Uuid
+  whatsappId      String?         @unique @map("whatsapp_id") // WA message ID
+  direction       MessageDirection
+  type            MessageType     @default(TEXT)
+  status          MessageStatus   @default(SENT)
+  body            String?
+  mediaUrl        String?         @map("media_url")
+  mediaType       String?         @map("media_type")
+  mediaSize       Int?            @map("media_size")
+  fileName        String?         @map("file_name")
+  latitude        Float?
+  longitude       Float?
+  quotedMessageId String?         @map("quoted_message_id") @db.Uuid
+  isForwarded     Boolean         @default(false) @map("is_forwarded")
+  isDeleted       Boolean         @default(false) @map("is_deleted")
+  reactions       Json            @default("[]")
+  metadata        Json            @default("{}")
+  sentAt          DateTime?       @map("sent_at")
+  deliveredAt     DateTime?       @map("delivered_at")
+  readAt          DateTime?       @map("read_at")
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  conversation    Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@index([direction])
+  @@map("messages")
+}
+
+model WhatsappTemplate {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name        String   @unique
+  category    String   // greeting, follow_up, reminder, promotional
+  content     String
+  variables   String[] @default([])
+  isActive    Boolean  @default(true) @map("is_active")
+  usageCount  Int      @default(0) @map("usage_count")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("whatsapp_templates")
+}
+
+// ====================================================
+// MODULE 6: LEGAL AGENDA
+// ====================================================
+
+model LegalCase {
+  id              String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  caseNumber      String          @unique @map("case_number")
+  clientId        String?         @map("client_id") @db.Uuid
+  assignedToId    String?         @map("assigned_to_id") @db.Uuid
+  type            LegalCaseType   @default(OTHER)
+  status          LegalCaseStatus @default(OPEN)
+  title           String
+  description     String?
+  court           String?
+  judge           String?
+  counterpart     String?
+  counterpartLawyer String?       @map("counterpart_lawyer")
+  filingDate      DateTime?       @map("filing_date")
+  expectedEndDate DateTime?       @map("expected_end_date")
+  closedAt        DateTime?       @map("closed_at")
+  closingNotes    String?         @map("closing_notes")
+  estimatedValue  Decimal?        @map("estimated_value") @db.Decimal(15, 2)
+  priority        EventPriority   @default(MEDIUM)
+  tags            String[]        @default([])
+  metadata        Json            @default("{}")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+  deletedAt       DateTime?       @map("deleted_at")
+
+  client          Client?         @relation(fields: [clientId], references: [id])
+  assignedTo      User?           @relation("AssignedLegal", fields: [assignedToId], references: [id])
+  events          LegalEvent[]
+  documents       Document[]
+  tasks           Task[]
+
+  @@index([status, assignedToId])
+  @@map("legal_cases")
+}
+
+model LegalEvent {
+  id              String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  caseId          String        @map("case_id") @db.Uuid
+  title           String
+  description     String?
+  eventType       String        // hearing, deadline, meeting, filing, payment, other
+  scheduledAt     DateTime      @map("scheduled_at")
+  completedAt     DateTime?     @map("completed_at")
+  location        String?
+  isCompleted     Boolean       @default(false) @map("is_completed")
+  priority        EventPriority @default(MEDIUM)
+  reminderSent    Boolean       @default(false) @map("reminder_sent")
+  reminderAt      DateTime?     @map("reminder_at")
+  result          String?
+  notes           String?
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  case            LegalCase     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([scheduledAt, isCompleted])
+  @@map("legal_events")
+}
+
+// ====================================================
+// SHARED: TASKS
+// ====================================================
+
+model Task {
+  id              String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  title           String
+  description     String?
+  conversationId  String?   @map("conversation_id") @db.Uuid
+  legalCaseId     String?   @map("legal_case_id") @db.Uuid
+  assignedToId    String?   @map("assigned_to_id") @db.Uuid
+  priority        EventPriority @default(MEDIUM)
+  dueDate         DateTime? @map("due_date")
+  completedAt     DateTime? @map("completed_at")
+  isCompleted     Boolean   @default(false) @map("is_completed")
+  source          String    @default("manual") // manual, ai, whatsapp, automation
+  metadata        Json      @default("{}")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  conversation    Conversation? @relation(fields: [conversationId], references: [id])
+  legalCase       LegalCase?    @relation(fields: [legalCaseId], references: [id])
+
+  @@index([dueDate, isCompleted])
+  @@map("tasks")
+}
+
+// ====================================================
+// DOCUMENTS & OCR
+// ====================================================
+
+model Document {
+  id              String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name            String
+  originalName    String           @map("original_name")
+  mimeType        String           @map("mime_type")
+  size            Int
+  url             String
+  storageKey      String           @map("storage_key")
+  category        DocumentCategory @default(GENERAL)
+  clientId        String?          @map("client_id") @db.Uuid
+  creditId        String?          @map("credit_id") @db.Uuid
+  legalCaseId     String?          @map("legal_case_id") @db.Uuid
+  uploadedById    String?          @map("uploaded_by_id") @db.Uuid
+  isProcessed     Boolean          @default(false) @map("is_processed")
+  tags            String[]         @default([])
+  metadata        Json             @default("{}")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  deletedAt       DateTime?        @map("deleted_at")
+
+  client          Client?          @relation(fields: [clientId], references: [id])
+  credit          CreditRequest?   @relation(fields: [creditId], references: [id])
+  legalCase       LegalCase?       @relation(fields: [legalCaseId], references: [id])
+  uploadedBy      User?            @relation(fields: [uploadedById], references: [id])
+  ocrResult       OcrResult?
+
+  @@index([clientId])
+  @@index([category])
+  @@map("documents")
+}
+
+model OcrResult {
+  id              String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  documentId      String    @unique @map("document_id") @db.Uuid
+  provider        String    // tesseract, google_vision, gemini, openai
+  status          OcrStatus @default(PENDING)
+  rawText         String?   @map("raw_text")
+  structuredData  Json?     @map("structured_data")
+  confidence      Float?
+  pageCount       Int?      @map("page_count")
+  processingTime  Int?      @map("processing_time") // ms
+  errorMessage    String?   @map("error_message")
+  processedAt     DateTime? @map("processed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  document        Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@map("ocr_results")
+}
+
+// ====================================================
+// AI ANALYSES
+// ====================================================
+
+model AiAnalysis {
+  id          String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  provider    AiProvider
+  model       String
+  type        String     // sentiment, scoring, classification, summary, suggestion, risk
+  entityType  String     @map("entity_type") // conversation, lead, credit, document, payroll
+  entityId    String     @map("entity_id") @db.Uuid
+  prompt      String?
+  result      Json
+  tokensUsed  Int?       @map("tokens_used")
+  processingTime Int?    @map("processing_time") // ms
+  confidence  Float?
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  @@index([entityType, entityId])
+  @@index([type])
+  @@map("ai_analyses")
+}
+
+// ====================================================
+// NOTIFICATIONS
+// ====================================================
+
+model Notification {
+  id          String              @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId      String              @map("user_id") @db.Uuid
+  channel     NotificationChannel @default(IN_APP)
+  status      NotificationStatus  @default(PENDING)
+  title       String
+  body        String
+  data        Json                @default("{}")
+  entityType  String?             @map("entity_type")
+  entityId    String?             @map("entity_id") @db.Uuid
+  readAt      DateTime?           @map("read_at")
+  sentAt      DateTime?           @map("sent_at")
+  createdAt   DateTime            @default(now()) @map("created_at")
+
+  user        User                @relation(fields: [userId], references: [id])
+
+  @@index([userId, status])
+  @@map("notifications")
+}
+
+// ====================================================
+// AUDIT LOGS
+// ====================================================
+
+model AuditLog {
+  id          String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId      String?     @map("user_id") @db.Uuid
+  action      AuditAction
+  entityType  String      @map("entity_type")
+  entityId    String?     @map("entity_id")
+  oldValues   Json?       @map("old_values")
+  newValues   Json?       @map("new_values")
+  ipAddress   String?     @map("ip_address")
+  userAgent   String?     @map("user_agent")
+  metadata    Json        @default("{}")
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  user        User?       @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ====================================================
+// WEBHOOKS
+// ====================================================
+
+model Webhook {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name        String
+  url         String
+  secret      String
+  events      String[] // event types to listen for
+  isActive    Boolean  @default(true) @map("is_active")
+  lastSentAt  DateTime? @map("last_sent_at")
+  failureCount Int     @default(0) @map("failure_count")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  deliveries  WebhookDelivery[]
+
+  @@map("webhooks")
+}
+
+model WebhookDelivery {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  webhookId   String   @map("webhook_id") @db.Uuid
+  event       String
+  payload     Json
+  statusCode  Int?     @map("status_code")
+  response    String?
+  isSuccess   Boolean  @default(false) @map("is_success")
+  attempts    Int      @default(0)
+  sentAt      DateTime @default(now()) @map("sent_at")
+
+  webhook     Webhook  @relation(fields: [webhookId], references: [id])
+
+  @@map("webhook_deliveries")
+}
+
+// ====================================================
+// SYSTEM CONFIG
+// ====================================================
+
+model SystemConfig {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  key         String   @unique
+  value       Json
+  description String?
+  isPublic    Boolean  @default(false) @map("is_public")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("system_config")
+}
+
+// ====================================================
+// AI HUB ENTERPRISE
+// ====================================================
+
+enum AiAssistantMode {
+  EXECUTIVE
+  ADVISOR
+  LEGAL
+  FINANCIAL
+  ADMIN
+  GENERAL
+}
+
+enum AiExecutionStatus {
+  PENDING_CONFIRMATION
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+enum AiRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model AiConversation {
+  id              String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId          String            @map("user_id") @db.Uuid
+  assistantMode   AiAssistantMode   @default(GENERAL) @map("assistant_mode")
+  title           String?
+  metadata        Json              @default("{}")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  user            User              @relation(fields: [userId], references: [id])
+  messages        AiMessage[]
+  toolCalls       AiToolCall[]
+
+  @@index([userId])
+  @@map("ai_conversations")
+}
+
+model AiMessage {
+  id              String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  conversationId  String            @map("conversation_id") @db.Uuid
+  role            String            // "user", "assistant", "system", "tool"
+  content         String
+  metadata        Json              @default("{}")
+  tokensUsed      Int?              @map("tokens_used")
+  createdAt       DateTime          @default(now()) @map("created_at")
+
+  conversation    AiConversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@map("ai_messages")
+}
+
+model AiToolCall {
+  id              String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  conversationId  String            @map("conversation_id") @db.Uuid
+  toolName        String            @map("tool_name")
+  inputParams     Json              @map("input_params")
+  outputResult    Json?             @map("output_result")
+  status          AiExecutionStatus @default(SUCCESS)
+  riskLevel       AiRiskLevel       @default(LOW) @map("risk_level")
+  error           String?
+  executionTime   Int?              @map("execution_time_ms")
+  createdAt       DateTime          @default(now()) @map("created_at")
+
+  conversation    AiConversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  executionLog    AiExecutionLog?
+  confirmation    AiActionConfirmation?
+
+  @@index([conversationId])
+  @@map("ai_tool_calls")
+}
+
+model AiExecutionLog {
+  id              String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  toolCallId      String            @unique @map("tool_call_id") @db.Uuid
+  userId          String            @map("user_id") @db.Uuid
+  module          String
+  action          String
+  beforeState     Json?             @map("before_state")
+  afterState      Json?             @map("after_state")
+  affectedRecords Int               @default(0) @map("affected_records")
+  ipAddress       String?           @map("ip_address")
+  createdAt       DateTime          @default(now()) @map("created_at")
+
+  toolCall        AiToolCall        @relation(fields: [toolCallId], references: [id], onDelete: Cascade)
+  user            User              @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("ai_execution_logs")
+}
+
+model AiActionConfirmation {
+  id              String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  toolCallId      String            @unique @map("tool_call_id") @db.Uuid
+  userId          String            @map("user_id") @db.Uuid
+  summary         String
+  status          AiExecutionStatus @default(PENDING_CONFIRMATION)
+  confirmedAt     DateTime?         @map("confirmed_at")
+  cancelledAt     DateTime?         @map("cancelled_at")
+  createdAt       DateTime          @default(now()) @map("created_at")
+
+  toolCall        AiToolCall        @relation(fields: [toolCallId], references: [id], onDelete: Cascade)
+  user            User              @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("ai_action_confirmations")
+}
+
+model AiMemoryEntry {
+  id              String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId          String?           @map("user_id") @db.Uuid
+  entityType      String            @map("entity_type") // e.g., "CLIENT", "USER_PREF", "KNOWLEDGE"
+  entityId        String?           @map("entity_id")
+  content         String
+  metadata        Json              @default("{}")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  user            User?             @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@map("ai_memory_entries")
+}
+
+model AiPermissionsMatrix {
+  id              String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  role            UserRole
+  module          String
+  toolName        String            @map("tool_name")
+  isAllowed       Boolean           @default(false) @map("is_allowed")
+  requiresConfirm Boolean           @default(true) @map("requires_confirm")
+  maxRiskLevel    AiRiskLevel       @default(LOW) @map("max_risk_level")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  @@unique([role, toolName])
+  @@map("ai_permissions_matrix")
+}
+
+model AiSystemPrompt {
+  id              String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  assistantMode   AiAssistantMode   @unique @map("assistant_mode")
+  prompt          String
+  isActive        Boolean           @default(true) @map("is_active")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  @@map("ai_system_prompts")
+}
+
+model AiFeedback {
+  id              String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId          String            @map("user_id") @db.Uuid
+  conversationId  String            @map("conversation_id") @db.Uuid
+  rating          Int               // 1 to 5
+  comments        String?
+  createdAt       DateTime          @default(now()) @map("created_at")
+
+  user            User              @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("ai_feedback")
+}
+
+model AiModelUsage {
+  id              String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId          String?           @map("user_id") @db.Uuid
+  provider        String            // "GEMINI", "OPENAI", "CLAUDE"
+  model           String
+  promptTokens    Int               @default(0) @map("prompt_tokens")
+  completionTokens Int              @default(0) @map("completion_tokens")
+  estimatedCost   Float             @default(0) @map("estimated_cost")
+  createdAt       DateTime          @default(now()) @map("created_at")
+
+  user            User?             @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([provider])
+  @@map("ai_model_usage")
+}
+
+model AiError {
+  id              String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId          String?           @map("user_id") @db.Uuid
+  toolCallId      String?           @map("tool_call_id") @db.Uuid
+  errorMessage    String            @map("error_message")
+  stackTrace      String?           @map("stack_trace")
+  createdAt       DateTime          @default(now()) @map("created_at")
+
+  @@map("ai_errors")
+}
+
+// ====================================================
+// EXECUTIVE EMAIL INTEGRATION
+// ====================================================
+
+model ExecutiveEmail {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  messageId       String   @unique @map("message_id")
+  threadId        String   @map("thread_id")
+  sender          String
+  subject         String
+  date            DateTime
+  snippet         String?
+  bodyText        String?  @map("body_text")
+  hasAttachments  Boolean  @default(false) @map("has_attachments")
+  aiSummary       String?  @map("ai_summary")
+  aiActions       Json?    @map("ai_actions") // Array of { label, action, color }
+  isProcessed     Boolean  @default(false) @map("is_processed")
+  isRead          Boolean  @default(false) @map("is_read")
+  isImportant     Boolean  @default(false) @map("is_important")
+  clientId        String?  @map("client_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  client          Client?  @relation(fields: [clientId], references: [id])
+
+  @@index([isProcessed])
+  @@index([isRead])
+  @@index([date])
+  @@map("executive_emails")
+}
+
+// ====================================================
+// MODULE: CONTENT STUDIO AI
+// ====================================================
+
+enum ContentStatus {
+  DRAFT
+  GENERATED
+  PENDING_REVIEW
+  APPROVED
+  SCHEDULED
+  PUBLISHED
+  FAILED
+  REJECTED
+}
+
+enum ContentFormat {
+  FEED_SQUARE
+  FEED_VERTICAL
+  STORY
+  REEL
+  CAROUSEL
+}
+
+model ContentCampaign {
+  id              String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name            String
+  objective       String?
+  targetAudience  String?        @map("target_audience")
+  startDate       DateTime?      @map("start_date")
+  endDate         DateTime?      @map("end_date")
+  status          String         @default("ACTIVE")
+  createdById     String?        @map("created_by_id") @db.Uuid
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  posts           ContentPost[]
+
+  @@map("content_campaigns")
+}
+
+model ContentStrategy {
+  id              String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name            String         @default("Sin nombre")
+  keywords        String[]       @default([])
+  objective       String
+  audience        String
+  serviceOrProduct String?       @map("service_or_product")
+  brandTone       String?        @map("brand_tone")
+  pillars         Json?          // Array of pillars
+  generatedIdeas  Json?          @map("generated_ideas") // Raw AI output backup
+  suggestedSchedule Json?        @map("suggested_schedule")
+  createdById     String?        @map("created_by_id") @db.Uuid
+  createdAt       DateTime       @default(now()) @map("created_at")
+
+  createdBy       User?          @relation("StrategyCreator", fields: [createdById], references: [id])
+  posts           ContentPost[]  @relation("StrategyPosts")
+
+  @@map("content_strategies")
+}
+
+model ContentCalendar {
+  id              String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name            String
+  period          String         // e.g. "2024-07"
+  createdById     String?        @map("created_by_id") @db.Uuid
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  posts           ContentPost[]
+
+  @@map("content_calendars")
+}
+
+model ContentPost {
+  id              String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  calendarId      String?        @map("calendar_id") @db.Uuid
+  campaignId      String?        @map("campaign_id") @db.Uuid
+  strategyId      String?        @map("strategy_id") @db.Uuid
+  title           String?
+  objective       String?
+  format          ContentFormat  @default(FEED_SQUARE)
+  copyText        String?        @map("copy_text")
+  visualPrompt    String?        @map("visual_prompt")
+  hashtags        String[]       @default([])
+  cta             String?
+  scheduledDate   DateTime?      @map("scheduled_date")
+  status          ContentStatus  @default(DRAFT)
+  assigneeId      String?        @map("assignee_id") @db.Uuid
+  createdById     String?        @map("created_by_id") @db.Uuid
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  calendar        ContentCalendar? @relation(fields: [calendarId], references: [id])
+  campaign        ContentCampaign? @relation(fields: [campaignId], references: [id])
+  strategy        ContentStrategy? @relation("StrategyPosts", fields: [strategyId], references: [id])
+  
+  generatedImages GeneratedImage[]
+  approvals       ContentApproval[]
+  instagramSchedules InstagramSchedule[]
+  instagramPosts  InstagramPost[]
+
+  @@map("content_posts")
+}
+
+model BrandKit {
+  id              String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name            String
+  description     String?
+  toneOfVoice     String?        @map("tone_of_voice")
+  isActive        Boolean        @default(true) @map("is_active")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  assets          BrandAsset[]
+  colors          BrandColor[]
+  fonts           BrandFont[]
+  guidelines      BrandGuideline[]
+
+  @@map("brand_kits")
+}
+
+model BrandAsset {
+  id              String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  brandKitId      String         @map("brand_kit_id") @db.Uuid
+  name            String
+  type            String         // logo_primary, logo_white, isotipo, icon, background, template
+  fileUrl         String         @map("file_url")
+  createdAt       DateTime       @default(now()) @map("created_at")
+
+  brandKit        BrandKit       @relation(fields: [brandKitId], references: [id], onDelete: Cascade)
+
+  @@map("brand_assets")
+}
+
+model BrandColor {
+  id              String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  brandKitId      String         @map("brand_kit_id") @db.Uuid
+  name            String
+  hexCode         String         @map("hex_code")
+  type            String         // primary, secondary, accent, background
+  
+  brandKit        BrandKit       @relation(fields: [brandKitId], references: [id], onDelete: Cascade)
+
+  @@map("brand_colors")
+}
+
+model BrandFont {
+  id              String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  brandKitId      String         @map("brand_kit_id") @db.Uuid
+  name            String
+  family          String
+  url             String?
+  usage           String?        // headings, body, buttons
+  
+  brandKit        BrandKit       @relation(fields: [brandKitId], references: [id], onDelete: Cascade)
+
+  @@map("brand_fonts")
+}
+
+model BrandGuideline {
+  id              String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  brandKitId      String         @map("brand_kit_id") @db.Uuid
+  title           String
+  content         String
+  
+  brandKit        BrandKit       @relation(fields: [brandKitId], references: [id], onDelete: Cascade)
+
+  @@map("brand_guidelines")
+}
+
+model ContentPerson {
+  id              String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name            String
+  role            String?
+  imageUrl        String         @map("image_url")
+  consentStatus   String         @default("PENDING") @map("consent_status") // PENDING, APPROVED, EXPIRED
+  consentDocumentUrl String?     @map("consent_document_url")
+  allowedUsage    String?        @map("allowed_usage")
+  restrictedTopics String?       @map("restricted_topics")
+  active          Boolean        @default(true)
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  @@map("content_people")
+}
+
+model ContentElement {
+  id              String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name            String
+  type            String         // product, object, uniform, office, vehicle
+  imageUrl        String         @map("image_url")
+  description     String?
+  tags            String[]       @default([])
+  allowedUsage    String?        @map("allowed_usage")
+  active          Boolean        @default(true)
+  createdAt       DateTime       @default(now()) @map("created_at")
+
+  @@map("content_elements")
+}
+
+model GeneratedImage {
+  id              String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  postId          String?        @map("post_id") @db.Uuid
+  imageUrl        String         @map("image_url")
+  prompt          String
+  provider        String         // openai, replicate, etc
+  style           String?
+  format          ContentFormat?
+  isApproved      Boolean        @default(false) @map("is_approved")
+  createdById     String?        @map("created_by_id") @db.Uuid
+  createdAt       DateTime       @default(now()) @map("created_at")
+
+  post            ContentPost?   @relation(fields: [postId], references: [id])
+  variations      ImageVariation[]
+
+  @@map("generated_images")
+}
+
+model ImageVariation {
+  id                String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  originalImageId   String         @map("original_image_id") @db.Uuid
+  imageUrl          String         @map("image_url")
+  promptUsed        String         @map("prompt_used")
+  createdAt         DateTime       @default(now()) @map("created_at")
+
+  originalImage     GeneratedImage @relation(fields: [originalImageId], references: [id], onDelete: Cascade)
+
+  @@map("image_variations")
+}
+
+model InstagramAccount {
+  id              String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  instagramId     String         @unique @map("instagram_id")
+  username        String
+  profilePicture  String?        @map("profile_picture")
+  accessToken     String         @map("access_token")
+  tokenExpiresAt  DateTime?      @map("token_expires_at")
+  isActive        Boolean        @default(true) @map("is_active")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  posts           InstagramPost[]
+  schedules       InstagramSchedule[]
+
+  @@map("instagram_accounts")
+}
+
+model InstagramPost {
+  id              String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  accountId       String         @map("account_id") @db.Uuid
+  contentPostId   String?        @map("content_post_id") @db.Uuid
+  igMediaId       String?        @unique @map("ig_media_id")
+  permalink       String?
+  status          String         // PUBLISHED, FAILED
+  errorMessage    String?        @map("error_message")
+  publishedAt     DateTime?      @map("published_at")
+  createdAt       DateTime       @default(now()) @map("created_at")
+
+  account         InstagramAccount @relation(fields: [accountId], references: [id])
+  contentPost     ContentPost?   @relation(fields: [contentPostId], references: [id])
+
+  @@map("instagram_posts")
+}
+
+model InstagramSchedule {
+  id              String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  accountId       String         @map("account_id") @db.Uuid
+  contentPostId   String         @map("content_post_id") @db.Uuid
+  scheduledFor    DateTime       @map("scheduled_for")
+  status          String         // PENDING, PROCESSING, COMPLETED, FAILED, CANCELLED
+  errorMessage    String?        @map("error_message")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  account         InstagramAccount @relation(fields: [accountId], references: [id])
+  contentPost     ContentPost    @relation(fields: [contentPostId], references: [id])
+
+  @@map("instagram_schedules")
+}
+
+model ContentApproval {
+  id              String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  postId          String         @map("post_id") @db.Uuid
+  reviewerId      String         @map("reviewer_id") @db.Uuid
+  status          String         // APPROVED, REJECTED
+  comments        String?
+  createdAt       DateTime       @default(now()) @map("created_at")
+
+  post            ContentPost    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  reviewer        User           @relation(fields: [reviewerId], references: [id])
+
+  @@map("content_approvals")
+}
+
+model ContentAnalytics {
+  id              String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  igMediaId       String         @map("ig_media_id")
+  reach           Int            @default(0)
+  impressions     Int            @default(0)
+  likes           Int            @default(0)
+  comments        Int            @default(0)
+  saves           Int            @default(0)
+  engagementRate  Float          @default(0) @map("engagement_rate")
+  recordedAt      DateTime       @default(now()) @map("recorded_at")
+
+  @@map("content_analytics")
+}
+
+model ContentAiLog {
+  id              String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId          String?        @map("user_id") @db.Uuid
+  action          String         // e.g. "generate_image", "create_strategy"
+  prompt          String?
+  modelUsed       String?        @map("model_used")
+  provider        String?
+  outputUrl       String?        @map("output_url")
+  status          String
+  error           String?
+  costEstimate    Float?         @map("cost_estimate")
+  createdAt       DateTime       @default(now()) @map("created_at")
+
+  @@map("content_ai_logs")
+}
+
+model ContentPublishingLog {
+  id              String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId          String?        @map("user_id") @db.Uuid
+  accountId       String?        @map("account_id") @db.Uuid
+  postId          String?        @map("post_id") @db.Uuid
+  action          String         // "publish", "schedule", "delete"
+  status          String
+  error           String?
+  createdAt       DateTime       @default(now()) @map("created_at")
+
+  @@map("content_publishing_logs")
+}

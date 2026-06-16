@@ -1,0 +1,66 @@
+name: CI/CD — SERVIMIL OS
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  lint-and-test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: cd apps/api && npx prisma generate
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build API
+        run: cd apps/api && npm run build
+
+      - name: Build Web
+        run: cd apps/web && npm run build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:3001/api/v1
+          NEXT_PUBLIC_WS_URL: http://localhost:3001
+          NEXT_PUBLIC_APP_NAME: SERVIMIL OS
+
+  deploy-api:
+    name: Deploy API
+    needs: lint-and-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Railway/Render
+        run: echo "Deploy API — Configure your deployment platform here"
+        # Add your deployment commands (Railway CLI, Render webhook, etc.)
+
+  deploy-web:
+    name: Deploy Web
+    needs: lint-and-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Vercel
+        run: echo "Deploy Web — Configure Vercel deployment here"
+        # npx vercel --prod --token=${{ secrets.VERCEL_TOKEN }}
