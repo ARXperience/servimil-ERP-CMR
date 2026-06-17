@@ -209,6 +209,7 @@ export interface CopilotData {
   clientData: Record<string, string>;
   missingData: string[];
   suggestedActions: string[];
+  documents?: any[];
   lastAnalyzedAt: string | null;
 }
 
