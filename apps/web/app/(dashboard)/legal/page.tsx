@@ -23,7 +23,7 @@ export default function LegalDashboardPage() {
   const eventsList = events || [];
 
   const activeCases = casesList.filter((c) => c.status === "OPEN" || c.status === "IN_PROGRESS");
-  const upcomingDeadlines = eventsList.filter((e) => e.type === "DEADLINE").slice(0, 5);
+  const upcomingDeadlines = eventsList.filter((e) => e.eventType === "DEADLINE").slice(0, 5);
 
   return (
     <div className="flex-1 space-y-6 p-4 md:p-8 pt-6">
@@ -62,7 +62,7 @@ export default function LegalDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {eventsList.filter((e) => e.type === "HEARING").length}
+              {eventsList.filter((e) => e.eventType === "HEARING").length}
             </div>
             <p className="text-xs text-muted-foreground">Scheduled hearings</p>
           </CardContent>
@@ -74,7 +74,7 @@ export default function LegalDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {eventsList.filter((e) => e.type === "FILING").length}
+              {eventsList.filter((e) => e.eventType === "FILING").length}
             </div>
             <p className="text-xs text-muted-foreground">Documents submitted</p>
           </CardContent>
@@ -98,13 +98,13 @@ export default function LegalDashboardPage() {
                     <div className="text-sm text-muted-foreground flex gap-2">
                       <span>{legalCase.caseNumber}</span>
                       <span>&bull;</span>
-                      <span>{legalCase.court}</span>
+                      <span>{legalCase.courtName}</span>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-medium">{legalCase.clientName}</div>
+                    <div className="text-sm font-medium">{legalCase.client?.name || "Unknown Client"}</div>
                     <div className="text-xs text-muted-foreground">
-                      Filed: {format(new Date(legalCase.filedDate), "MMM d, yyyy")}
+                      Filed: {format(new Date(legalCase.createdAt), "MMM d, yyyy")}
                     </div>
                   </div>
                 </div>
@@ -129,7 +129,7 @@ export default function LegalDashboardPage() {
                     <div className="space-y-1">
                       <p className="text-sm font-medium leading-none">{deadline.title}</p>
                       <p className="text-sm text-muted-foreground">
-                        {format(new Date(deadline.date), "MMM d, yyyy - h:mm a")}
+                        {format(new Date(deadline.scheduledAt), "MMM d, yyyy - h:mm a")}
                       </p>
                     </div>
                   </div>
