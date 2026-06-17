@@ -25,7 +25,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
 
   const eventsList = events || [];
   // Sort events newest first
-  const sortedEvents = [...eventsList].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const sortedEvents = [...eventsList].sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime());
 
   const getEventIcon = (type: string) => {
     switch (type) {
@@ -92,15 +92,15 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
                   {sortedEvents.map((event, index) => (
                     <div key={event.id} className="relative pl-6">
                       <div className="absolute -left-3 top-1 bg-background border-2 border-muted rounded-full p-1 shadow-sm">
-                        {getEventIcon(event.type)}
+                        {getEventIcon(event.eventType)}
                       </div>
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2">
                           <h4 className="font-semibold text-base">{event.title}</h4>
-                          <Badge variant="outline" className="text-[10px] uppercase h-5">{event.type}</Badge>
+                          <Badge variant="outline" className="text-[10px] uppercase h-5">{event.eventType}</Badge>
                         </div>
                         <time className="text-sm text-primary font-medium">
-                          {format(new Date(event.date), "PPP 'at' p")}
+                          {format(new Date(event.scheduledAt), "PPP 'at' p")}
                         </time>
                         <p className="text-sm text-muted-foreground mt-2 bg-muted/30 p-3 rounded-md border">
                           {event.description}
