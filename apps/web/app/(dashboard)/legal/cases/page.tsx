@@ -26,8 +26,8 @@ export default function LegalCasesPage() {
   const filteredCases = casesList.filter(
     (c) =>
       c.title.toLowerCase().includes(search.toLowerCase()) ||
-      c.caseNumber.toLowerCase().includes(search.toLowerCase()) ||
-      c.clientName.toLowerCase().includes(search.toLowerCase())
+      (c.caseNumber || '').toLowerCase().includes(search.toLowerCase()) ||
+      (c.client?.name || '').toLowerCase().includes(search.toLowerCase())
   );
 
   const getStatusBadge = (status: string) => {
@@ -92,11 +92,11 @@ export default function LegalCasesPage() {
                     </div>
                   </div>
                 </TableCell>
-                <TableCell className="font-medium">{c.clientName}</TableCell>
-                <TableCell className="text-muted-foreground text-sm">{c.court}</TableCell>
+                <TableCell className="font-medium">{c.client?.name || "Unknown Client"}</TableCell>
+                <TableCell className="text-muted-foreground text-sm">{c.courtName}</TableCell>
                 <TableCell>{getStatusBadge(c.status)}</TableCell>
                 <TableCell className="text-right text-muted-foreground">
-                  {format(new Date(c.filedDate), "MMM d, yyyy")}
+                  {format(new Date(c.createdAt), "MMM d, yyyy")}
                 </TableCell>
               </TableRow>
             ))}
