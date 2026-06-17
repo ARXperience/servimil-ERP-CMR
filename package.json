@@ -10,7 +10,7 @@
   "scripts": {
     "start": "node apps/api/dist/main.js",
     "dev": "turbo run dev",
-    "build": "turbo run build",
+    "build": "npm install --include=dev && turbo run build",
     "test": "turbo run test",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
