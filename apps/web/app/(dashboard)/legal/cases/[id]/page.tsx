@@ -50,7 +50,7 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
             <Scale className="h-3.5 w-3.5" />
             <span>Case #{legalCase.caseNumber}</span>
             <span>&bull;</span>
-            <span>{legalCase.court}</span>
+            <span>{legalCase.courtName}</span>
           </div>
         </div>
       </div>
@@ -68,11 +68,11 @@ export default function CaseDetailPage({ params }: { params: { id: string } }) {
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground mb-1">Client</p>
-                <p className="font-medium">{legalCase.clientName}</p>
+                <p className="font-medium">{legalCase.client?.name || "Unknown Client"}</p>
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground mb-1">Filed Date</p>
-                <p>{format(new Date(legalCase.filedDate), "PPP")}</p>
+                <p>{format(new Date(legalCase.createdAt), "PPP")}</p>
               </div>
             </CardContent>
           </Card>
